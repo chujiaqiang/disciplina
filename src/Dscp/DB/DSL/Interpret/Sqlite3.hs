@@ -4,15 +4,11 @@
 module Dscp.DB.DSL.Interpret.Sqlite3 () where
 
 import qualified Data.Set as Set (Set, empty, member, singleton)
-import Data.Time.Clock (UTCTime)
 
 import Database.SQLite.Simple (Only (..))
 
 import Text.InterpolatedString.Perl6 (q, qc, qq)
 
-import Dscp.Core.Types (Assignment (..), AssignmentType (..), CourseId (..),
-                        Grade (..), SignedSubmission (..), StudentId, Submission (..),
-                        SubmissionSig, SubmissionType (..), SubmissionWitness (..))
 import Dscp.Crypto (PublicKey)
 import Dscp.DB.DSL.Class
 import Dscp.DB.SQLite
@@ -57,7 +53,7 @@ getPrivateTxsByFilter pk filterExpr = do
              |]
         else [qc||]
 
-    map (packPrivateTxQuery pk) <$> query
+    fmap ($ pk) <$> query
         [qc|
             select    Submissions.student_addr,
                       Submissions.contents_hash,
@@ -123,49 +119,8 @@ getPrivateTxFromId pk tid = do
         (Only tid)
 
     return $ case pack of
-        [queryResult] -> Just (packPrivateTxQuery pk queryResult)
+        [queryResult] -> Just (queryResult pk)
         _other        -> Nothing
-
-packPrivateTxQuery
-    :: PublicKey
-    ->  ( StudentId
-        , Integer
-        , CourseId
-        , Integer
-        , Text
-        , SubmissionSig
-        , Grade
-        , UTCTime
-        )
-    -> PrivateTx
-packPrivateTxQuery pk
-    ( student_addr
-    , sub_type
-    , course_id
-    , assign_type
-    , assign_desc
-    , sub_sig
-    , grade
-    , time
-    ) = PrivateTx
-            (SignedSubmission
-                (Submission
-                    student_addr
-                    (select sub_type Digital Offline)
-                    (Assignment
-                        course_id
-                        (select assign_type Regular CourseFinal)
-                        assign_desc))
-                (SubmissionWitness
-                    pk
-                    sub_sig))
-            grade
-            time
-  where
-    select i left right =
-        if i == (0 :: Integer)
-        then left
-        else right
 
 data RequiredTables
     = Subject
